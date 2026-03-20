@@ -1,0 +1,17 @@
+[Unit]
+Description=Customer App Spring Boot Service
+After=network.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/opt/customer-app
+EnvironmentFile=/opt/customer-app/.env
+ExecStart=/usr/bin/java -jar /opt/customer-app/app.jar
+SuccessExitStatus=143
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
