@@ -7,9 +7,10 @@ on:
     branches: [main]
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
   JAVA_VERSION: '21'
   NODE_VERSION: '22'
+  # AWS_REGION is only needed for the frontend S3/CloudFront deployment
+  AWS_REGION: ${{ vars.AWS_REGION }}
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -63,84 +64,19 @@ jobs:
         run: npm test
 
   # ---------------------------------------------------------------------------
-  # DEPLOY BACKEND → EC2 Spot Instance
+  # DEPLOY BACKEND → Render (Docker-based Web Service)
   # ---------------------------------------------------------------------------
   deploy-backend:
-    name: Deploy Backend to EC2
+    name: Deploy Backend to Render
     needs: test-backend
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-          cache: gradle
-
-      - name: Build JAR
-        run: ./gradlew bootJar -x test
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Fetch secrets from SSM Parameter Store
-        id: ssm
+      - name: Trigger Render Deploy Hook
         run: |
-          MONGODB_URI=$(aws ssm get-parameter \
-            --name "${{ secrets.SSM_MONGODB_URI_PATH }}" \
-            --with-decryption \
-            --query "Parameter.Value" \
-            --output text)
-          echo "::add-mask::$MONGODB_URI"
-          echo "MONGODB_URI=$MONGODB_URI" >> $GITHUB_OUTPUT
-
-      - name: Set up SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Copy JAR to EC2
-        run: |
-          scp -i ~/.ssh/deploy_key \
-            build/libs/*-SNAPSHOT.jar \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/customer-app/app.jar
-
-      - name: Copy systemd service file
-        run: |
-          scp -i ~/.ssh/deploy_key \
-            scripts/customer-app.service \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/customer-app/customer-app.service
-
-      - name: Write .env file and restart service
-        env:
-          MONGODB_URI: ${{ steps.ssm.outputs.MONGODB_URI }}
-        run: |
-          ssh -i ~/.ssh/deploy_key \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-            "bash -s" << 'EOF'
-            # Write environment file (never logged)
-            cat > /opt/customer-app/.env << ENVFILE
-          MONGODB_URI=$MONGODB_URI
-          CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS }}
-          ENVFILE
-            chmod 600 /opt/customer-app/.env
-
-            # Install/refresh systemd unit
-            sudo cp /opt/customer-app/customer-app.service /etc/systemd/system/customer-app.service
-            sudo systemctl daemon-reload
-            sudo systemctl restart customer-app
-            sudo systemctl status customer-app --no-pager
-          EOF
+          curl --silent --show-error --fail \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
 
   # ---------------------------------------------------------------------------
   # DEPLOY FRONTEND → S3 + CloudFront
