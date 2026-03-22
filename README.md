@@ -22,7 +22,7 @@ Die Anwendung ist live und kann unter den folgenden Links erreicht werden:
 
 ## 📝 Bekannte Einschränkungen 
 
-Aufgrund von Zeitmangel wurden einige Features, die für eine vollständig produktionsreife Anwendung notwendig wären, noch nicht implementiert. Diese stehen auf der Roadmap für zukünftige Iterationen:
+Aufgrund von Zeitmangel wurden einige Features, die für eine vollständig produktionsreife Anwendung notwendig wären.
 
 * 🔒 **Authentifizierung & Security:** Aktuell ist keine Authentifizierung für die API implementiert (kein Token-Handling, JWT, OAuth etc.). Die Endpunkte sind derzeit ungeschützt.
 * 🧪 **Frontend E2E-Testing:** Es fehlen End-to-End- oder Screenshot-Tests für die Benutzeroberfläche (z. B. mit Playwright oder Cypress), um visuelle Regressionen zu vermeiden.
